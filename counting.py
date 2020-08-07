@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
+
 class Counter(nn.Module):
     """ Counting module as proposed in [1].
     Count the number of objects from a set of bounding boxes and a set of scores for each bounding box.
@@ -19,6 +20,7 @@ class Counter(nn.Module):
     [1]: Yan Zhang, Jonathon Hare, Adam Prügel-Bennett: Learning to Count Objects in Natural Images for Visual Question Answering.
     https://openreview.net/forum?id=B12Js_yRb
     """
+
     def __init__(self, objects, already_sigmoided=False):
         super().__init__()
         self.objects = objects
@@ -52,13 +54,18 @@ class Counter(nn.Module):
         # aggregate the score
         # can skip putting this on the diagonal since we're just summing over it anyway
         correction = self.f[0](attention * attention) / dedup_per_row
-        score = score.sum(dim=2).sum(dim=1, keepdim=True) + correction.sum(dim=1, keepdim=True)
+        score = score.sum(dim=2).sum(dim=1, keepdim=True) + correction.sum(
+            dim=1, keepdim=True
+        )
         score = (score + 1e-20).sqrt()
         one_hot = self.to_one_hot(score)
 
         att_conf = (self.f[5](attention) - 0.5).abs()
         dist_conf = (self.f[6](distance) - 0.5).abs()
-        conf = self.f[7](att_conf.mean(dim=1, keepdim=True) + dist_conf.mean(dim=2).mean(dim=1, keepdim=True))
+        conf = self.f[7](
+            att_conf.mean(dim=1, keepdim=True)
+            + dist_conf.mean(dim=2).mean(dim=1, keepdim=True)
+        )
 
         return one_hot * conf
 
@@ -141,6 +148,7 @@ class Counter(nn.Module):
         inter = (max_point - min_point).clamp(min=0)
         area = inter[:, 0, :, :] * inter[:, 1, :, :]
         return area
+
 
 class PiecewiseLin(nn.Module):
     def __init__(self, n):

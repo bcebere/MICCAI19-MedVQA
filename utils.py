@@ -24,21 +24,27 @@ import dataset_RAD
 
 EPS = 1e-7
 numpy_type_map = {
-    'float64': torch.DoubleTensor,
-    'float32': torch.FloatTensor,
-    'float16': torch.HalfTensor,
-    'int64': torch.LongTensor,
-    'int32': torch.IntTensor,
-    'int16': torch.ShortTensor,
-    'int8': torch.CharTensor,
-    'uint8': torch.ByteTensor,
+    "float64": torch.DoubleTensor,
+    "float32": torch.FloatTensor,
+    "float16": torch.HalfTensor,
+    "int64": torch.LongTensor,
+    "int32": torch.IntTensor,
+    "int16": torch.ShortTensor,
+    "int8": torch.CharTensor,
+    "uint8": torch.ByteTensor,
 }
+
+
 def assert_eq(real, expected):
-    assert real == expected, '%s (true) vs %s (expected)' % (real, expected)
+    assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
+
 
 def assert_array_eq(real, expected):
-    assert (np.abs(real-expected) < EPS).all(), \
-        '%s (true) vs %s (expected)' % (real, expected)
+    assert (np.abs(real - expected) < EPS).all(), "%s (true) vs %s (expected)" % (
+        real,
+        expected,
+    )
+
 
 def load_folder(folder, suffix):
     imgs = []
@@ -47,18 +53,21 @@ def load_folder(folder, suffix):
             imgs.append(os.path.join(folder, f))
     return imgs
 
+
 def load_imageid(folder):
-    images = load_folder(folder, 'jpg')
+    images = load_folder(folder, "jpg")
     img_ids = set()
     for img in images:
-        img_id = int(img.split('/')[-1].split('.')[0].split('_')[-1])
+        img_id = int(img.split("/")[-1].split(".")[0].split("_")[-1])
         img_ids.add(img_id)
     return img_ids
 
+
 def pil_loader(path):
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         with Image.open(f) as img:
-            return img.convert('RGB')
+            return img.convert("RGB")
+
 
 def weights_init(m):
     """custom weights initialization."""
@@ -69,13 +78,15 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
     else:
-        print('%s is not initialized.' % cname)
+        print("%s is not initialized." % cname)
+
 
 def init_net(net, net_file):
     if net_file:
         net.load_state_dict(torch.load(net_file))
     else:
         net.apply(weights_init)
+
 
 def create_dir(path):
     if not os.path.exists(path):
@@ -85,23 +96,23 @@ def create_dir(path):
             if exc.errno != errno.EEXIST:
                 raise
 
+
 def print_model(model, logger):
     print(model)
     nParams = 0
     for w in model.parameters():
         nParams += functools.reduce(operator.mul, w.size(), 1)
     if logger:
-        logger.write('nParams=\t'+str(nParams))
+        logger.write("nParams=\t" + str(nParams))
+
 
 def save_model(path, model, epoch, optimizer=None):
-    model_dict = {
-            'epoch': epoch,
-            'model_state': model.state_dict()
-        }
+    model_dict = {"epoch": epoch, "model_state": model.state_dict()}
     if optimizer is not None:
-        model_dict['optimizer_state'] = optimizer.state_dict()
+        model_dict["optimizer_state"] = optimizer.state_dict()
 
     torch.save(model_dict, path)
+
 
 # Select the indices given by `lengths` in the second dimension
 # As a result, # of dimensions is shrinked by one
@@ -109,9 +120,10 @@ def save_model(path, model, epoch, optimizer=None):
 # @param len(list[int])
 def rho_select(pad, lengths):
     # Index of the last output for each sequence.
-    idx_ = (lengths-1).view(-1,1).expand(pad.size(0), pad.size(2)).unsqueeze(1)
+    idx_ = (lengths - 1).view(-1, 1).expand(pad.size(0), pad.size(2)).unsqueeze(1)
     extracted = pad.gather(1, idx_).squeeze(1)
     return extracted
+
 
 def trim_collate(batch):
     "Puts each data field into a tensor with outer dimension batch size"
@@ -120,7 +132,7 @@ def trim_collate(batch):
     elem_type = type(batch[0])
     if torch.is_tensor(batch[0]):
         out = None
-        if 1 < batch[0].dim(): # image features
+        if 1 < batch[0].dim():  # image features
             max_num_boxes = max([x.size(0) for x in batch])
             if _use_shared_memory:
                 # If we're in a background process, concatenate directly into a
@@ -129,7 +141,11 @@ def trim_collate(batch):
                 storage = batch[0].storage()._new_shared(numel)
                 out = batch[0].new(storage)
             # warning: F.pad returns Variable!
-            return torch.stack([F.pad(x, (0,0,0,max_num_boxes-x.size(0))).data for x in batch], 0, out=out)
+            return torch.stack(
+                [F.pad(x, (0, 0, 0, max_num_boxes - x.size(0))).data for x in batch],
+                0,
+                out=out,
+            )
         else:
             if _use_shared_memory:
                 # If we're in a background process, concatenate directly into a
@@ -138,17 +154,20 @@ def trim_collate(batch):
                 storage = batch[0].storage()._new_shared(numel)
                 out = batch[0].new(storage)
             return torch.stack(batch, 0, out=out)
-    elif elem_type.__module__ == 'numpy' and elem_type.__name__ != 'str_' \
-            and elem_type.__name__ != 'string_':
+    elif (
+        elem_type.__module__ == "numpy"
+        and elem_type.__name__ != "str_"
+        and elem_type.__name__ != "string_"
+    ):
         elem = batch[0]
-        if elem_type.__name__ == 'ndarray':
+        if elem_type.__name__ == "ndarray":
             # array of string classes and object
-            if re.search('[SaUO]', elem.dtype.str) is not None:
+            if re.search("[SaUO]", elem.dtype.str) is not None:
                 raise TypeError(error_msg.format(elem.dtype))
 
             return torch.stack([torch.from_numpy(b) for b in batch], 0)
         if elem.shape == ():  # scalars
-            py_type = float if elem.dtype.name.startswith('float') else int
+            py_type = float if elem.dtype.name.startswith("float") else int
             return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
     elif isinstance(batch[0], int):
         return torch.LongTensor(batch)
@@ -164,45 +183,47 @@ def trim_collate(batch):
 
     raise TypeError((error_msg.format(type(batch[0]))))
 
+
 class Logger(object):
     def __init__(self, output_name):
         dirname = os.path.dirname(output_name)
         if not os.path.exists(dirname):
             os.mkdir(dirname)
 
-        self.log_file = open(output_name, 'w')
+        self.log_file = open(output_name, "w")
         self.infos = {}
 
     def append(self, key, val):
         vals = self.infos.setdefault(key, [])
         vals.append(val)
 
-    def log(self, extra_msg=''):
+    def log(self, extra_msg=""):
         msgs = [extra_msg]
         for key, vals in self.infos.iteritems():
-            msgs.append('%s %.6f' % (key, np.mean(vals)))
-        msg = '\n'.join(msgs)
-        self.log_file.write(msg + '\n')
+            msgs.append("%s %.6f" % (key, np.mean(vals)))
+        msg = "\n".join(msgs)
+        self.log_file.write(msg + "\n")
         self.log_file.flush()
         self.infos = {}
         return msg
 
     def write(self, msg):
-        self.log_file.write(msg + '\n')
+        self.log_file.write(msg + "\n")
         self.log_file.flush()
         print(msg)
+
 
 def create_glove_embedding_init(idx2word, glove_file):
     word2emb = {}
     # glove_file = glove_file if args.use_TDIUC else os.path.join(args.TDIUC_dir, 'glove', glove_file.split('/')[-1])
-    with open(glove_file, 'r', encoding='utf-8') as f:
+    with open(glove_file, "r", encoding="utf-8") as f:
         entries = f.readlines()
-    emb_dim = len(entries[0].split(' ')) - 1
-    print('embedding dim is %d' % emb_dim)
+    emb_dim = len(entries[0].split(" ")) - 1
+    print("embedding dim is %d" % emb_dim)
     weights = np.zeros((len(idx2word), emb_dim), dtype=np.float32)
 
     for entry in entries:
-        vals = entry.split(' ')
+        vals = entry.split(" ")
         word = vals[0]
         vals = list(map(float, vals[1:]))
         word2emb[word] = np.array(vals)
@@ -211,6 +232,7 @@ def create_glove_embedding_init(idx2word, glove_file):
             continue
         weights[idx] = word2emb[word]
     return weights, word2emb
+
 
 # --------------------FAIRSEQ functions---------------------------
 def move_to_cuda(sample):
@@ -221,10 +243,7 @@ def move_to_cuda(sample):
         if torch.is_tensor(maybe_tensor):
             return maybe_tensor.cuda()
         elif isinstance(maybe_tensor, dict):
-            return {
-                key: _move_to_cuda(value)
-                for key, value in maybe_tensor.items()
-            }
+            return {key: _move_to_cuda(value) for key, value in maybe_tensor.items()}
         elif isinstance(maybe_tensor, list):
             return [_move_to_cuda(x) for x in maybe_tensor]
         else:
@@ -232,12 +251,14 @@ def move_to_cuda(sample):
 
     return _move_to_cuda(sample)
 
+
 def item(tensor):
-    if hasattr(tensor, 'item'):
+    if hasattr(tensor, "item"):
         return tensor.item()
-    if hasattr(tensor, '__getitem__'):
+    if hasattr(tensor, "__getitem__"):
         return tensor[0]
     return tensor
+
 
 def clip_grad_norm_(tensor, max_norm):
     grad_norm = item(torch.norm(tensor))
@@ -246,9 +267,10 @@ def clip_grad_norm_(tensor, max_norm):
         tensor.mul_(clip_coef)
     return grad_norm
 
+
 def to_sparse(x):
     """ converts dense tensor x to sparse format """
-    x_typename = torch.typename(x).split('.')[-1]
+    x_typename = torch.typename(x).split(".")[-1]
     sparse_tensortype = getattr(torch.sparse, x_typename)
 
     indices = torch.nonzero(x)
@@ -257,6 +279,7 @@ def to_sparse(x):
     indices = indices.t()
     values = x[tuple(indices[i] for i in range(indices.shape[0]))]
     return sparse_tensortype(indices, values, x.size())
+
 
 def get_size_of_largest_vqa_batch(dataloader):
     largest_v = None
@@ -273,38 +296,53 @@ def get_size_of_largest_vqa_batch(dataloader):
         if largest_v > v.size()[1]:
             pass
 
+
 def get_dummy_batch(args):
     pass
+
 
 def as_minutes(seconds):
     minutes = math.floor(seconds / 60)
     seconds -= minutes * 60
-    return '%dm %ds' % (minutes, seconds)
+    return "%dm %ds" % (minutes, seconds)
+
 
 def time_since(since, percent):
     now = time.time()
     seconds = now - since
     elapsed_seconds = seconds / (percent)
     rest_seconds = elapsed_seconds - seconds
-    return '%s (- %s)' % (as_minutes(seconds), as_minutes(rest_seconds))
+    return "%s (- %s)" % (as_minutes(seconds), as_minutes(rest_seconds))
+
 
 def tfidf_loading(use_tfidf, w_emb, args):
     if use_tfidf:
         if args.use_RAD:
-            dict = dataset_RAD.Dictionary.load_from_file(os.path.join(args.RAD_dir, 'dictionary.pkl'))
+            dict = dataset_RAD.Dictionary.load_from_file(
+                os.path.join(args.RAD_dir, "dictionary.pkl")
+            )
 
         # load extracted tfidf and weights from file for saving loading time
         if args.use_RAD:
-            if os.path.isfile(os.path.join(args.RAD_dir, 'embed_tfidf_weights.pkl')) == True:
+            if (
+                os.path.isfile(os.path.join(args.RAD_dir, "embed_tfidf_weights.pkl"))
+                == True
+            ):
                 print("Loading embedding tfidf and weights from file")
-                with open(os.path.join(args.RAD_dir ,'embed_tfidf_weights.pkl'), 'rb') as f:
+                with open(
+                    os.path.join(args.RAD_dir, "embed_tfidf_weights.pkl"), "rb"
+                ) as f:
                     w_emb = torch.load(f)
                 print("Load embedding tfidf and weights from file successfully")
             else:
                 print("Embedding tfidf and weights haven't been saving before")
-                tfidf, weights = dataset_RAD.tfidf_from_questions(['train'], None, dict)
-                w_emb.init_embedding(os.path.join(args.RAD_dir, 'glove6b_init_300d.npy'), tfidf, weights)
-                with open(os.path.join(args.RAD_dir ,'embed_tfidf_weights.pkl'), 'wb') as f:
+                tfidf, weights = dataset_RAD.tfidf_from_questions(["train"], None, dict)
+                w_emb.init_embedding(
+                    os.path.join(args.RAD_dir, "glove6b_init_300d.npy"), tfidf, weights
+                )
+                with open(
+                    os.path.join(args.RAD_dir, "embed_tfidf_weights.pkl"), "wb"
+                ) as f:
                     torch.save(w_emb, f)
                 print("Saving embedding with tfidf and weights successfully")
     return w_emb

@@ -4,8 +4,10 @@ This code is from https://github.com/pytorch/fairseq
 
 import time
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -21,8 +23,10 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+
 class TimeMeter(object):
     """Computes the average occurrence of some event per second"""
+
     def __init__(self, init=0):
         self.reset(init)
 
@@ -42,8 +46,10 @@ class TimeMeter(object):
     def elapsed_time(self):
         return self.init + (time.time() - self.start)
 
+
 class StopwatchMeter(object):
     """Computes the sum/avg duration of some event in seconds"""
+
     def __init__(self):
         self.reset()
 

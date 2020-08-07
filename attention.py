@@ -12,12 +12,15 @@ from bc import BCNet
 
 # Bilinear Attention
 class BiAttention(nn.Module):
-    def __init__(self, x_dim, y_dim, z_dim, glimpse, dropout=[.2,.5]):
+    def __init__(self, x_dim, y_dim, z_dim, glimpse, dropout=[0.2, 0.5]):
         super(BiAttention, self).__init__()
 
         self.glimpse = glimpse
-        self.logits = weight_norm(BCNet(x_dim, y_dim, z_dim, glimpse, dropout=dropout, k=3), \
-            name='h_mat', dim=None)
+        self.logits = weight_norm(
+            BCNet(x_dim, y_dim, z_dim, glimpse, dropout=dropout, k=3),
+            name="h_mat",
+            dim=None,
+        )
 
     def forward(self, v, q, v_mask=True):
         """
@@ -30,18 +33,27 @@ class BiAttention(nn.Module):
     def forward_all(self, v, q, v_mask=True):
         v_num = v.size(1)
         q_num = q.size(1)
-        logits = self.logits(v, q) # b x g x v x q
+        logits = self.logits(v, q)  # b x g x v x q
 
         if v_mask:
             mask = (0 == v.abs().sum(2)).unsqueeze(1).unsqueeze(3).expand(logits.size())
-            logits.data.masked_fill_(mask.data, -float('inf'))
+            logits.data.masked_fill_(mask.data, -float("inf"))
 
         p = nn.functional.softmax(logits.view(-1, self.glimpse, v_num * q_num), 2)
         return p.view(-1, self.glimpse, v_num, q_num), logits
 
+
 # Stacked Attention
 class StackedAttention(nn.Module):
-    def __init__(self, num_stacks, img_feat_size, ques_feat_size, att_size, output_size, drop_ratio):
+    def __init__(
+        self,
+        num_stacks,
+        img_feat_size,
+        ques_feat_size,
+        att_size,
+        output_size,
+        drop_ratio,
+    ):
         super(StackedAttention, self).__init__()
 
         self.img_feat_size = img_feat_size
@@ -80,12 +92,12 @@ class StackedAttention(nn.Module):
         # Mask actual bounding box sizes before calculating softmax
         if v_mask:
             mask = (0 == img_emb_1.abs().sum(2)).unsqueeze(2).expand(h1_emb.size())
-            h1_emb.data.masked_fill_(mask.data, -float('inf'))
+            h1_emb.data.masked_fill_(mask.data, -float("inf"))
 
         p1 = self.softmax(h1_emb)
 
         #  Compute weighted sum
-        img_att_1 = img_emb_1*p1
+        img_att_1 = img_emb_1 * p1
         weight_sum_1 = torch.sum(img_att_1, dim=1)
 
         # Combine with question vector
@@ -94,10 +106,10 @@ class StackedAttention(nn.Module):
         # Other stacks
         us = []
         ques_embs = []
-        img_embs  = []
+        img_embs = []
         hs = []
-        h_embs =[]
-        ps  = []
+        h_embs = []
+        ps = []
         img_atts = []
         weight_sums = []
 
@@ -107,12 +119,18 @@ class StackedAttention(nn.Module):
             img_embs.append(self.layers[3 * stack + 1](img_feat))
 
             # Compute attention distribution
-            hs.append(self.tanh(ques_embs[-1].view(B, -1, self.att_size) + img_embs[-1]))
-            h_embs.append(self.layers[3*stack + 2](self.dropout(hs[-1])))
+            hs.append(
+                self.tanh(ques_embs[-1].view(B, -1, self.att_size) + img_embs[-1])
+            )
+            h_embs.append(self.layers[3 * stack + 2](self.dropout(hs[-1])))
             # Mask actual bounding box sizes before calculating softmax
             if v_mask:
-                mask = (0 == img_embs[-1].abs().sum(2)).unsqueeze(2).expand(h_embs[-1].size())
-                h_embs[-1].data.masked_fill_(mask.data, -float('inf'))
+                mask = (
+                    (0 == img_embs[-1].abs().sum(2))
+                    .unsqueeze(2)
+                    .expand(h_embs[-1].size())
+                )
+                h_embs[-1].data.masked_fill_(mask.data, -float("inf"))
             ps.append(self.softmax(h_embs[-1]))
 
             #  Compute weighted sum

@@ -7,6 +7,7 @@ import torch
 import utils
 import torch.nn as nn
 from trainer import Trainer
+
 warmup_updates = 4000
 
 # Kaiming normalization initialization
@@ -15,42 +16,62 @@ def init_weights(m):
         with torch.no_grad():
             torch.nn.init.kaiming_normal_(m.weight)
 
+
 # VQA score computation
 def compute_score_with_logits(logits, labels):
-    logits = torch.max(logits, 1)[1].data # argmax
+    logits = torch.max(logits, 1)[1].data  # argmax
     one_hots = torch.zeros(*labels.size()).to(logits.device)
     one_hots.scatter_(1, logits.view(-1, 1), 1)
-    scores = (one_hots * labels)
+    scores = one_hots * labels
     return scores
 
+
 # Train phase
-def train(args, model, train_loader, eval_loader, num_epochs, output, opt=None, s_epoch=0):
+def train(
+    args, model, train_loader, eval_loader, num_epochs, output, opt=None, s_epoch=0
+):
     device = args.device
     # Scheduler learning rate
     lr_default = args.lr
     lr_decay_step = 2
-    lr_decay_rate = .75
-    lr_decay_epochs = range(10,20,lr_decay_step) if eval_loader is not None else range(10,20,lr_decay_step)
-    gradual_warmup_steps = [0.5 * lr_default, 1.0 * lr_default, 1.5 * lr_default, 2.0 * lr_default]
-    saving_epoch = 15    # Start point for model saving
+    lr_decay_rate = 0.75
+    lr_decay_epochs = (
+        range(10, 20, lr_decay_step)
+        if eval_loader is not None
+        else range(10, 20, lr_decay_step)
+    )
+    gradual_warmup_steps = [
+        0.5 * lr_default,
+        1.0 * lr_default,
+        1.5 * lr_default,
+        2.0 * lr_default,
+    ]
+    saving_epoch = 15  # Start point for model saving
     grad_clip = args.clip_norm
 
     utils.create_dir(output)
 
     # Adamax optimizer
-    optim = torch.optim.Adamax(filter(lambda p: p.requires_grad, model.parameters()), lr=lr_default) \
-        if opt is None else opt
+    optim = (
+        torch.optim.Adamax(
+            filter(lambda p: p.requires_grad, model.parameters()), lr=lr_default
+        )
+        if opt is None
+        else opt
+    )
 
     # Loss function
-    criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
+    criterion = torch.nn.BCEWithLogitsLoss(reduction="sum")
     ae_criterion = torch.nn.MSELoss()
 
     # write hyper-parameter to log file
-    logger = utils.Logger(os.path.join(output, 'log.txt'))
+    logger = utils.Logger(os.path.join(output, "log.txt"))
     logger.write(args.__repr__())
     utils.print_model(model, logger)
-    logger.write('optim: adamax lr=%.4f, decay_step=%d, decay_rate=%.2f, grad_clip=%.2f' % \
-        (lr_default, lr_decay_step, lr_decay_rate, grad_clip))
+    logger.write(
+        "optim: adamax lr=%.4f, decay_step=%d, decay_rate=%.2f, grad_clip=%.2f"
+        % (lr_default, lr_decay_step, lr_decay_rate, grad_clip)
+    )
 
     # create trainer
     trainer = Trainer(args, model, criterion, optim, ae_criterion)
@@ -67,15 +88,17 @@ def train(args, model, train_loader, eval_loader, num_epochs, output, opt=None, 
         num_updates = 0
         t = time.time()
         N = len(train_loader.dataset)
-        num_batches = int(N/args.batch_size + 1)
+        num_batches = int(N / args.batch_size + 1)
         if epoch < len(gradual_warmup_steps):
-            trainer.optimizer.param_groups[0]['lr'] = gradual_warmup_steps[epoch]
-            logger.write('gradual warm up lr: %.4f' % trainer.optimizer.param_groups[0]['lr'])
+            trainer.optimizer.param_groups[0]["lr"] = gradual_warmup_steps[epoch]
+            logger.write(
+                "gradual warm up lr: %.4f" % trainer.optimizer.param_groups[0]["lr"]
+            )
         elif epoch in lr_decay_epochs:
-            trainer.optimizer.param_groups[0]['lr'] *= lr_decay_rate
-            logger.write('decreased lr: %.4f' % trainer.optimizer.param_groups[0]['lr'])
+            trainer.optimizer.param_groups[0]["lr"] *= lr_decay_rate
+            logger.write("decreased lr: %.4f" % trainer.optimizer.param_groups[0]["lr"])
         else:
-            logger.write('lr: %.4f' % trainer.optimizer.param_groups[0]['lr'])
+            logger.write("lr: %.4f" % trainer.optimizer.param_groups[0]["lr"])
 
         # Predicting and computing score
         for i, (v, q, a, _, _, _) in enumerate(train_loader):
@@ -92,7 +115,9 @@ def train(args, model, train_loader, eval_loader, num_epochs, output, opt=None, 
             if i < num_batches - 1 and (i + 1) % update_freq > 0:
                 trainer.train_step(sample, update_params=False)
             else:
-                loss, grad_norm, batch_score = trainer.train_step(sample, update_params=True)
+                loss, grad_norm, batch_score = trainer.train_step(
+                    sample, update_params=True
+                )
                 total_norm += grad_norm
                 count_norm += 1
 
@@ -100,7 +125,17 @@ def train(args, model, train_loader, eval_loader, num_epochs, output, opt=None, 
                 train_score += batch_score
                 num_updates += 1
                 if num_updates % int(args.print_interval / update_freq) == 0:
-                    print("Iter: {}, Loss {:.4f}, Norm: {:.4f}, Total norm: {:.4f}, Num updates: {}, Wall time: {:.2f}, ETA: {}".format(i + 1, total_loss / ((num_updates + 1)), grad_norm, total_norm, num_updates, time.time() - wall_time_start, utils.time_since(t, i / num_batches)))
+                    print(
+                        "Iter: {}, Loss {:.4f}, Norm: {:.4f}, Total norm: {:.4f}, Num updates: {}, Wall time: {:.2f}, ETA: {}".format(
+                            i + 1,
+                            total_loss / ((num_updates + 1)),
+                            grad_norm,
+                            total_norm,
+                            num_updates,
+                            time.time() - wall_time_start,
+                            utils.time_since(t, i / num_batches),
+                        )
+                    )
 
         total_loss /= num_updates
         train_score = 100 * train_score / (num_updates * args.batch_size)
@@ -112,20 +147,24 @@ def train(args, model, train_loader, eval_loader, num_epochs, output, opt=None, 
             eval_score, bound = evaluate(model, eval_loader, args)
             trainer.model.train(True)
 
-        logger.write('epoch %d, time: %.2f' % (epoch, time.time()-t))
-        logger.write('\ttrain_loss: %.2f, norm: %.4f, score: %.2f' % (total_loss, total_norm/count_norm, train_score))
+        logger.write("epoch %d, time: %.2f" % (epoch, time.time() - t))
+        logger.write(
+            "\ttrain_loss: %.2f, norm: %.4f, score: %.2f"
+            % (total_loss, total_norm / count_norm, train_score)
+        )
         if eval_loader is not None:
-            logger.write('\teval score: %.2f (%.2f)' % (100 * eval_score, 100 * bound))
+            logger.write("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
 
         # Save per epoch
         if epoch >= saving_epoch:
-            model_path = os.path.join(output, 'model_epoch%d.pth' % epoch)
+            model_path = os.path.join(output, "model_epoch%d.pth" % epoch)
             utils.save_model(model_path, model, epoch, trainer.optimizer)
             # Save best epoch
             if eval_loader is not None and eval_score > best_eval_score:
-                model_path = os.path.join(output, 'model_epoch_best.pth')
+                model_path = os.path.join(output, "model_epoch_best.pth")
                 utils.save_model(model_path, model, epoch, trainer.optimizer)
                 best_eval_score = eval_score
+
 
 # Evaluation
 def evaluate(model, dataloader, args):

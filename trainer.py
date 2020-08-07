@@ -6,11 +6,14 @@ import utils
 import contextlib
 from collections import defaultdict, OrderedDict
 from meters import AverageMeter, TimeMeter
+
+
 class Trainer(object):
     """
     Main class for training.
     """
-    def __init__(self, args, model, criterion, optimizer=None, ae_criterion = None):
+
+    def __init__(self, args, model, criterion, optimizer=None, ae_criterion=None):
         self.args = args
 
         # copy model and criterion on current device
@@ -19,18 +22,18 @@ class Trainer(object):
         self.ae_criterion = ae_criterion.to(self.args.device)
         # initialize meters
         self.meters = OrderedDict()
-        self.meters['train_loss'] = AverageMeter()
-        self.meters['train_nll_loss'] = AverageMeter()
-        self.meters['valid_loss'] = AverageMeter()
-        self.meters['valid_nll_loss'] = AverageMeter()
-        self.meters['wps'] = TimeMeter()       # words per second
-        self.meters['ups'] = TimeMeter()       # updates per second
-        self.meters['wpb'] = AverageMeter()    # words per batch
-        self.meters['bsz'] = AverageMeter()    # sentences per batch
-        self.meters['gnorm'] = AverageMeter()  # gradient norm
-        self.meters['clip'] = AverageMeter()   # % of updates clipped
-        self.meters['oom'] = AverageMeter()    # out of memory
-        self.meters['wall'] = TimeMeter()      # wall time in seconds
+        self.meters["train_loss"] = AverageMeter()
+        self.meters["train_nll_loss"] = AverageMeter()
+        self.meters["valid_loss"] = AverageMeter()
+        self.meters["valid_nll_loss"] = AverageMeter()
+        self.meters["wps"] = TimeMeter()  # words per second
+        self.meters["ups"] = TimeMeter()  # updates per second
+        self.meters["wpb"] = AverageMeter()  # words per batch
+        self.meters["bsz"] = AverageMeter()  # sentences per batch
+        self.meters["gnorm"] = AverageMeter()  # gradient norm
+        self.meters["clip"] = AverageMeter()  # % of updates clipped
+        self.meters["oom"] = AverageMeter()  # out of memory
+        self.meters["wall"] = TimeMeter()  # wall time in seconds
 
         self._buffered_stats = defaultdict(lambda: [])
         self._flat_grads = None
@@ -72,16 +75,16 @@ class Trainer(object):
 
         # buffer stats and logging outputs
         # self._buffered_stats['sample_sizes'].append(sample_size)
-        self._buffered_stats['sample_sizes'].append(1)
-        self._buffered_stats['ooms_fwd'].append(oom_fwd)
-        self._buffered_stats['ooms_bwd'].append(oom_bwd)
+        self._buffered_stats["sample_sizes"].append(1)
+        self._buffered_stats["ooms_fwd"].append(oom_fwd)
+        self._buffered_stats["ooms_bwd"].append(oom_bwd)
 
         # update parameters
         if update_params:
             # gather logging outputs from all replicas
-            sample_sizes = self._buffered_stats['sample_sizes']
-            ooms_fwd = self._buffered_stats['ooms_fwd']
-            ooms_bwd = self._buffered_stats['ooms_bwd']
+            sample_sizes = self._buffered_stats["sample_sizes"]
+            ooms_fwd = self._buffered_stats["ooms_fwd"]
+            ooms_bwd = self._buffered_stats["ooms_bwd"]
             ooms_fwd = sum(ooms_fwd)
             ooms_bwd = sum(ooms_bwd)
 
@@ -96,14 +99,16 @@ class Trainer(object):
 
                 # update meters
                 if grad_norm is not None:
-                    self.meters['gnorm'].update(grad_norm)
-                    self.meters['clip'].update(1. if grad_norm > self.args.clip_norm else 0.)
+                    self.meters["gnorm"].update(grad_norm)
+                    self.meters["clip"].update(
+                        1.0 if grad_norm > self.args.clip_norm else 0.0
+                    )
 
-                self.meters['oom'].update(ooms_fwd + ooms_bwd)
+                self.meters["oom"].update(ooms_fwd + ooms_bwd)
 
             except OverflowError as e:
                 self.zero_grad()
-                print('| WARNING: overflow detected, ' + str(e))
+                print("| WARNING: overflow detected, " + str(e))
 
             self.clear_buffered_stats()
 
@@ -134,18 +139,25 @@ class Trainer(object):
                     loss = self.criterion(preds.float(), answers)
                     if self.args.autoencoder:
                         loss_ae = self.ae_criterion(img_data, decoder)
-                        loss = loss + (loss_ae*self.args.ae_alpha)
+                        loss = loss + (loss_ae * self.args.ae_alpha)
                     loss /= answers.size()[0]
                     final_preds = preds
-                    batch_score = compute_score_with_logits(final_preds, sample[2].data).sum()
+                    batch_score = compute_score_with_logits(
+                        final_preds, sample[2].data
+                    ).sum()
             except RuntimeError as e:
-                if not eval and 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory, skipping batch')
+                if not eval and "out of memory" in str(e):
+                    print("| WARNING: ran out of memory, skipping batch")
                     oom = 1
                     loss = None
                 else:
                     raise e
-        return loss, len(sample[0]), oom, batch_score  # TODO: Not sure about sample size, need to recheck
+        return (
+            loss,
+            len(sample[0]),
+            oom,
+            batch_score,
+        )  # TODO: Not sure about sample size, need to recheck
 
     def _backward(self, loss):
         oom = 0
@@ -154,8 +166,8 @@ class Trainer(object):
                 # backward pass
                 loss.backward()
             except RuntimeError as e:
-                if 'out of memory' in str(e):
-                    print('| WARNING: ran out of memory, skipping batch')
+                if "out of memory" in str(e):
+                    print("| WARNING: ran out of memory, skipping batch")
                     oom = 1
                     self.zero_grad()
                 else:
@@ -181,8 +193,10 @@ class Trainer(object):
             if not p.requires_grad:
                 continue
             if p.grad is None:
-                raise RuntimeError('Model parameter did not receive gradient: ' + name + '. '
-                                                                                         'Use the param in the forward pass or set requires_grad=False')
+                raise RuntimeError(
+                    "Model parameter did not receive gradient: " + name + ". "
+                    "Use the param in the forward pass or set requires_grad=False"
+                )
             grads.append(p.grad.data)
         return grads
 
@@ -194,7 +208,7 @@ class Trainer(object):
         offset = 0
         for g in grads:
             numel = g.numel()
-            out[offset:offset+numel].copy_(g.view(-1))
+            out[offset : offset + numel].copy_(g.view(-1))
             offset += numel
         return out[:offset]
 
@@ -203,7 +217,7 @@ class Trainer(object):
         offset = 0
         for g in grads:
             numel = g.numel()
-            g.copy_(new_grads[offset:offset+numel].view_as(g))
+            g.copy_(new_grads[offset : offset + numel].view_as(g))
             offset += numel
 
     def _opt(self):
@@ -236,10 +250,10 @@ class Trainer(object):
         self.zero_grad()
         self.clear_buffered_stats()
 
+
 def compute_score_with_logits(logits, labels):
     logits = torch.max(logits, 1)[1].data  # argmax
     one_hots = torch.zeros(*labels.size()).to(logits.device)
     one_hots.scatter_(1, logits.view(-1, 1), 1)
-    scores = (one_hots * labels)
+    scores = one_hots * labels
     return scores
-
