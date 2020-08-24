@@ -71,3 +71,7 @@ MIT License
 
 ### More information
 AIOZ AI Homepage: https://ai.aioz.io
+
+### Trained model
+
+https://drive.google.com/file/d/1dqJjthrbdnIs41ZdC_ZGVQnoZbuGMNCR/view?usp=sharing
